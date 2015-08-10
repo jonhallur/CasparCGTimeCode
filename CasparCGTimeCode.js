@@ -1,7 +1,9 @@
 OscTime = new Mongo.Collection('osc');
 OscSettings = new Mongo.Collection('settings');
-OscStatus = new Mongo.Collection('status');
+OscButtonStatus = new Mongo.Collection('status');
+OscServerStatus = new Mongo.Collection('ledstatus');
 var oscPort = null;
+var osc_msg_counter = 0;
 
 
 Meteor.startup(function () {
@@ -17,11 +19,17 @@ Meteor.startup(function () {
                 $set: settings
             });
         }
-        var status = {
+        var button_status = {
             button_status: "btn-primary"
         };
-        OscStatus.upsert({}, {
-            $set: status
+        var led_status = {
+            led_status: ""
+        };
+        OscButtonStatus.upsert({}, {
+            $set: button_status
+        });
+        OscServerStatus.upsert({},{
+            $set: led_status
         });
     }
 
@@ -35,8 +43,11 @@ if (Meteor.isClient) {
         settings: function () {
             return OscSettings.findOne({});
         },
-        osc_status: function () {
-            return OscStatus.findOne({});
+        osc_button_status: function () {
+            return OscButtonStatus.findOne({});
+        },
+        osc_led_status: function () {
+            return OscServerStatus.findOne({});
         }
 
     });
@@ -57,6 +68,31 @@ if (Meteor.isClient) {
     });
 }
 
+function parseFFMPEGTimeCodeOutput(settings, oscMsg) {
+    var osc_address = '/channel/' + settings.channel + '/stage/layer/' + settings.layer + '/file/time';
+    if (oscMsg.address === osc_address) {
+        //console.log("OSC:", oscMsg);
+        var total = oscMsg.args[1] - 0.07999;
+        var elapsed = oscMsg.args[0];
+        var remaining = total - elapsed;
+        var percentage = parseInt((remaining / total) * 100);
+        var seconds = parseInt(remaining);
+        var date = new Date(null);
+        date.setSeconds(seconds); // specify value for SECONDS here
+
+        var millis = remaining.toFixed(3) - seconds;
+        var formattedTime = date.toISOString().substr(11, 8) + "." + ("000" + parseInt(millis.toFixed(3) * 1000)).slice(-3);
+        OscTime.upsert(
+            {},
+            {
+                $set: {
+                    oscTime: formattedTime,
+                    percentage: percentage
+                }
+            }
+        )
+    }
+}
 if (Meteor.isServer) {
     Meteor.methods({
         StartOsc: function (settings) {
@@ -72,30 +108,27 @@ if (Meteor.isServer) {
                 oscPort.on("message", Meteor.bindEnvironment(function(oscMsg) {
                     //Session.set('oscTime', oscMsg.timeTag.native);
 
-                    var osc_address = '/channel/' + settings.channel +'/stage/layer/' + settings.layer + '/file/time';
-                    if (oscMsg.address === osc_address) {
-                        //console.log("OSC:", oscMsg);
-                        var total = oscMsg.args[1] - 0.07999;
-                        var elapsed = oscMsg.args[0];
-                        var remaining = total - elapsed;
-                        var percentage = parseInt((remaining / total) * 100);
-                        var seconds = parseInt(remaining);
-                        var date = new Date(null);
-                        date.setSeconds(seconds); // specify value for SECONDS here
-
-                        var millis = remaining.toFixed(3) - seconds;
-                        var formattedTime = date.toISOString().substr(11, 8) + "." + ("000" + parseInt( millis.toFixed(3)*1000)).slice(-3);
-                        OscTime.upsert(
+                    parseFFMPEGTimeCodeOutput(settings, oscMsg);
+                    var led = OscServerStatus.findOne();
+                    var status = led.led_status;
+                    //console.log(status);
+                    if (osc_msg_counter === 50) {
+                        if (status === "led-green") {
+                            status = "";
+                        }
+                        else {
+                            status = "led-green";
+                        }
+                        OscServerStatus.upsert(
                             {},
                             {
                                 $set: {
-                                    oscTime: formattedTime,
-                                    percentage: percentage
+                                    led_status: status
                                 }
-                            }
-                        )
+                            });
+                        osc_msg_counter = 0;
                     }
-
+                    osc_msg_counter++;
 
                 }));
 
@@ -106,7 +139,7 @@ if (Meteor.isServer) {
                 oscStatus = "btn-warning";
 
             }
-            OscStatus.upsert(
+            OscButtonStatus.upsert(
                 {},
                 {
                     $set: {

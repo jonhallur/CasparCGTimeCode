@@ -6,19 +6,20 @@
     <details>
         <summary>Settings</summary>
         <form class="settings">
-            <label>IP Address</label>
+            <label for="address">IP Address</label>
             <input id="address" name="address" type="text" value="{{settings.address}}">
             <br>
-            <label>Port</label>
+            <label for="port">Port</label>
             <input id="port" name="port" type="number" value="{{settings.port}}">
             <br>
-            <label>Caspar Video Channel</label>
+            <label for="channel">Caspar Video Channel</label>
             <input id="channel" name="channel" type="number" value="{{settings.channel}}">
             <br>
-            <label>Caspar Video Layer</label>
+            <label for="layer">Caspar Video Layer</label>
             <input id="layer" name="layer" type="number" value="{{settings.layer}}">
             <br>
-            <input id="start_osc" name="start_osc" type="button" value="StartOsc" class="btn {{osc_status.button_status}}">
+            <input id="start_osc" name="start_osc" type="button" value="StartOsc" class="btn {{osc_button_status.button_status}}">
+            <div class="led led-yellow {{osc_led_status.led_status}}"></div>
         </form>
 
     </details>
